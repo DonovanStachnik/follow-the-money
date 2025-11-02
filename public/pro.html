@@ -1,134 +1,162 @@
-﻿<!doctype html><html><head>
-<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>FollowTheMoney — Pro</title>
-<style>
-  body{margin:0;background:#0f172a;color:#e5e7eb;font-family:ui-sans-serif,system-ui,-apple-system}
-  .wrap{max-width:1200px;margin:0 auto;padding:24px 18px}
-  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-  input,select,button{background:#0b1220;color:#e5e7eb;border:1px solid #1f2937;padding:9px 10px;border-radius:10px}
-  button{cursor:pointer}
-  .panel{background:#0b1220;border:1px solid #1f2937;border-radius:14px;padding:14px;margin-top:18px}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;margin-top:12px}
-  .cell{padding:10px;border-radius:10px;text-align:center}
-  .pos{background:#064e3b} .neg{background:#3b0764} .neu{background:#1f2937}
-  .item{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px dashed #1f2937}
-  .badge{font-size:12px;padding:3px 8px;border-radius:999px}
-  .call{background:#065f46;color:#bbf7d0} .put{background:#6d28d9;color:#f5d0fe}
-  .muted{color:#94a3b8}
-</style>
-</head><body>
-<header style="background:#0b1220;border-bottom:1px solid #1f2937">
-  <div style="max-width:1200px;margin:0 auto;padding:14px 18px;display:flex;gap:16px;align-items:center">
-    <div style="font-weight:800;letter-spacing:.3px"><img src="/logo.svg" alt="" style="width:22px;height:22px;vertical-align:middle;margin-right:10px">FollowTheMoney</div>
-    <nav style="display:flex;gap:14px">
-      <a href="/" style="color:#e5e7eb;text-decoration:none">Home</a>
-      <a href="/pro.html" style="color:#e5e7eb;text-decoration:none">Pro</a>
-      <a href="/disclaimer.html" style="color:#e5e7eb;text-decoration:none">Disclaimer</a>
-    </nav>
-  </div>
-</header>
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>FollowTheMoney • Pro</title>
+  <style>
+    :root { --bg:#0f172a; --panel:#0b1220; --border:#1f2937; --muted:#9ca3af; --txt:#e5e7eb; }
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--txt);font-family:ui-sans-serif,system-ui,-apple-system}
+    header{background:#0b1220;border-bottom:1px solid var(--border)}
+    .nav{max-width:1400px;margin:0 auto;padding:14px 18px;display:flex;gap:16px;align-items:center}
+    .brand{font-weight:800;letter-spacing:.3px;display:flex;align-items:center;gap:10px}
+    .brand img{width:22px;height:22px}
+    .nav a{color:#e5e7eb;text-decoration:none;margin-right:14px}
+    .wrap{max-width:1400px;margin:0 auto;padding:22px 18px}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    input,select,button{background:var(--panel);color:var(--txt);border:1px solid var(--border);padding:9px 10px;border-radius:10px}
+    button{cursor:pointer}
+    .status{color:var(--muted);margin-left:8px}
+    .gridwrap{display:grid;grid-template-columns: 1fr 340px; gap:16px; align-items:start}
+    .columns{display:grid;grid-template-columns:repeat(4, minmax(180px, 1fr)); gap:12px}
+    .col{background:var(--panel);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+    .col .head{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);color:#cbd5e1;font-weight:700}
+    .strike{display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px dashed var(--border);font-variant-numeric:tabular-nums}
+    .bad{background:#3b0764} .good{background:#064e3b}
+    .strike.bad{background:linear-gradient(90deg, rgba(59,7,100,0.22), transparent)}
+    .strike.good{background:linear-gradient(90deg, rgba(6,78,59,0.22), transparent)}
+    .flow{background:var(--panel);border:1px solid var(--border);border-radius:14px;max-height:75vh;overflow:auto}
+    .flow .head{position:sticky;top:0;background:var(--panel);z-index:1;border-bottom:1px solid var(--border);padding:10px 12px;font-weight:700}
+    .item{display:flex;justify-content:space-between;gap:10px;padding:10px 12px;border-bottom:1px dashed var(--border);font-variant-numeric:tabular-nums}
+    .badge{font-size:12px;padding:3px 8px;border-radius:999px;display:inline-block;margin-right:6px}
+    .call{background:#065f46;color:#bbf7d0}.put{background:#6d28d9;color:#f5d0fe}
+    small.note{display:block;color:var(--muted);padding:6px 12px}
+    .hint{color:var(--muted);font-size:12px;margin:6px 2px}
+  </style>
+</head>
+<body>
+  <header><div class="nav">
+    <div class="brand"><img src="/logo.svg" alt="logo"/><span>FollowTheMoney</span></div>
+    <nav><a href="/index.html">Home</a><a href="/pro.html">Pro</a><a href="/disclaimer.html">Disclaimer</a></nav>
+  </div></header>
 
-<div class="wrap">
-  <h1 style="margin:8px 0 6px">Pro — Heatmap & Flow</h1>
-  <div class="row">
-    <label>Ticker <input id="ticker" value="AAPL" style="width:110px"></label>
-    <label>Expiry <select id="expiry"></select></label>
-    <button id="search">Search</button>
-    <span id="status" class="muted"></span>
-  </div>
+  <div class="wrap">
+    <h1 style="margin:6px 0 10px">Pro — Heatmap & Flow</h1>
+    <div class="row">
+      <label>Ticker <input id="ticker" value="AAPL" style="width:120px"></label>
+      <label>Expiry <select id="expiry" style="min-width:160px"></select></label>
+      <button id="search">Search</button>
+      <span id="status" class="status"></span>
+    </div>
 
-  <div class="panel">
-    <div class="muted" style="margin-bottom:8px">Source: /api/grid2 (multi-expiry). Positive = net call premium, Negative = net put premium.</div>
-    <div id="grid" class="grid"></div>
-  </div>
+    <div class="hint">Source: <code>/api/grid2</code> (multi-expiry) and <code>/api/flow2</code>. Positive = net call premium, Negative = net put premium.</div>
 
-  <div class="panel">
-    <div class="muted" style="margin-bottom:8px">Source: /api/flow2 (uses bid/ask/last; CALL/PUT premium = price × volume × 100).</div>
-    <div id="flow"></div>
+    <div class="gridwrap">
+      <div>
+        <div id="columns" class="columns"></div>
+      </div>
+      <div class="flow">
+        <div class="head">Options Flow <span id="flowCount" style="color:var(--muted);font-weight:400"></span></div>
+        <div id="flowList"></div>
+        <small class="note">Source: /api/flow2.</small>
+      </div>
+    </div>
   </div>
-</div>
 
 <script>
-const $ = s => document.querySelector(s);
+const \$ = s => document.querySelector(s);
 const fmt = n => {
   const a = Math.abs(n);
   if (a >= 1e9) return (n/1e9).toFixed(1)+'B';
   if (a >= 1e6) return (n/1e6).toFixed(1)+'M';
   if (a >= 1e3) return (n/1e3).toFixed(1)+'K';
-  return (n||0).toFixed(0);
+  return (Math.round(n)).toString();
 };
-const color = v => v>1_000_000?'pos':(v<-1_000_000?'neg':'neu');
 
-async function j(url){
+async function j(url) {
   const r = await fetch(url, {cache:'no-store'});
-  if(!r.ok) throw new Error(await r.text().catch(()=>r.statusText));
+  if (!r.ok) throw new Error(HTTP :  + await r.text());
   return r.json();
 }
 
-async function loadExpirations(){
-  const sym = #ticker.value.trim().toUpperCase();
-  const s = await j(/api/search?ticker=);
-  const list = (s && s.expirations)||[];
-  const sel = #expiry; sel.innerHTML='';
-  for(const d of list){ const o=document.createElement('option'); o.value=d; o.textContent=d; sel.appendChild(o); }
-  if(!sel.options.length){ const o=document.createElement('option'); o.value=''; o.textContent='(none)'; sel.appendChild(o); }
+async function loadExpirations(symbol) {
+  const s = await j(/api/search?ticker=\);
+  const sel = \#expiry; sel.innerHTML = '';
+  (s.expirations || []).forEach(d => {
+    const o = document.createElement('option'); o.value = d; o.textContent = d; sel.appendChild(o);
+  });
+  if (sel.options.length) sel.selectedIndex = 0;
 }
 
-async function loadAll(){
-  const sym = #ticker.value.trim().toUpperCase();
-  const exp = #expiry.value;
-  #status.textContent = "Loading…";
+function strikeRow(strike, value) {
+  const div = document.createElement('div');
+  const cls = value > 0 ? 'good' : (value < 0 ? 'bad' : '');
+  div.className = 'strike ' + cls;
+  const left = document.createElement('div');
+  left.textContent = strike;
+  const right = document.createElement('div');
+  right.textContent = (value>=0?'$ ':'-$ ') + fmt(Math.abs(value));
+  div.appendChild(left); div.appendChild(right);
+  return div;
+}
+
+async function renderColumns(symbol, startDate=null) {
+  const exps = Array.from(\#expiry.options).map(o => o.value);
+  const pick = (startDate && exps.includes(startDate))
+    ? [startDate, ...exps.filter(d=>d!==startDate)]
+    : exps;
+  const chosen = pick.slice(0,4);
+
+  const mount = \#columns; mount.innerHTML = '';
+  await Promise.all(chosen.map(async (date) => {
+    const data = await j(/api/grid2?ticker=\&date=\&rows=18&limit=1500);
+    const col = document.createElement('div'); col.className='col';
+    const head = document.createElement('div'); head.className='head';
+    head.innerHTML = <span>\</span><span style="font-size:11px;color:#94a3b8">NET</span>;
+    col.appendChild(head);
+    (data.netMatrix||[]).forEach(row => col.appendChild(strikeRow(row.strike, row.value)));
+    mount.appendChild(col);
+  }));
+}
+
+async function renderFlow(symbol, date) {
+  const f = await j(/api/flow2?ticker=\&date=\&limit=60);
+  const list = \#flowList; list.innerHTML = '';
+  \#flowCount.textContent = f.count ? \(\ items)\ : '';
+  (f.items||[]).forEach(it => {
+    const row = document.createElement('div'); row.className='item';
+    const left = document.createElement('div');
+    const badge = document.createElement('span'); badge.className = 'badge ' + (it.side==='CALL'?'call':'put'); badge.textContent = it.side;
+    left.appendChild(badge);
+    const meta = document.createElement('span');
+    meta.innerHTML = \Strike <b>\</b> <span style="color:#94a3b8">Vol \ OI \</span>\;
+    left.appendChild(meta);
+    const right = document.createElement('div'); right.textContent = '\$' + fmt(it.premium);
+    row.appendChild(left); row.appendChild(right);
+    list.appendChild(row);
+  });
+}
+
+async function go() {
   try{
-    // grid2 may ignore expiry and return columns; fall back to grid (single)
-    let grid;
-    try { grid = await j(/api/grid2?ticker=&rows=20&cols=4); }
-    catch { grid = await j(/api/grid?ticker=&limit=20); }
-
-    const flow = await j(/api/flow2?ticker=&date=&limit=60);
-
-    const g = #grid; g.innerHTML='';
-    // Accept both shapes: multi-col ({columns:[{items:[]}]}) or flat ({netMatrix:[]})
-    if(grid && Array.isArray(grid.columns)){
-      for(const col of grid.columns){
-        for(const c of (col.items||[])){
-          const d=document.createElement('div'); d.className = 'cell '+color(c.value||0);
-          d.textContent = ${c.strike} • ;
-          g.appendChild(d);
-        }
-      }
-    } else if (grid && Array.isArray(grid.netMatrix)){
-      for(const c of grid.netMatrix){
-        const d=document.createElement('div'); d.className = 'cell '+color(c.value||0);
-        d.textContent = ${c.strike} • ;
-        g.appendChild(d);
-      }
-    }
-
-    const f = #flow; f.innerHTML='';
-    for(const it of (flow.items||[])){
-      const row=document.createElement('div'); row.className='item';
-      const left=document.createElement('div');
-      const badge=document.createElement('span'); badge.className='badge '+(it.side==='CALL'?'call':'put'); badge.textContent=it.side||'?';
-      left.appendChild(badge);
-      left.insertAdjacentHTML('beforeend',  <span>Strike <b></b></span> <span class="muted">Vol </span> <span class="muted">OI </span>);
-      const right=document.createElement('div'); right.textContent = '$'+fmt(it.premium||0);
-      row.appendChild(left); row.appendChild(right); f.appendChild(row);
-    }
-
-    #status.textContent = OK •  •  • ;
-  }catch(e){
-    #status.textContent = 'Error: '+(e.message||e);
+    const sym = \#ticker.value.trim().toUpperCase();
+    \#status.textContent = 'Loading…';
+    await loadExpirations(sym);
+    const date = \#expiry.value || '';
+    await renderColumns(sym, date);
+    await renderFlow(sym, date);
+    \#status.textContent = \OK • \ • \ • \\;
+  } catch(e){
     console.error(e);
+    \#status.textContent = 'Error: ' + (e.message||e);
   }
 }
 
-async function init(){
-  try{ await loadExpirations(); await loadAll(); }catch(e){ #status.textContent = 'Init error: '+(e.message||e); console.error(e); }
-}
-document.getElementById('search').addEventListener('click', loadAll);
-document.getElementById('expiry').addEventListener('change', loadAll);
-document.getElementById('ticker').addEventListener('keydown', e => { if(e.key==='Enter') loadAll(); });
+document.getElementById('search').addEventListener('click', go);
+document.getElementById('expiry').addEventListener('change', go);
+document.getElementById('ticker').addEventListener('keydown', e => { if (e.key==='Enter') go(); });
 
-init();
+go();
 </script>
-</body></html>
+</body>
+</html>

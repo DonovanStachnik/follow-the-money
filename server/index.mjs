@@ -1,132 +1,170 @@
-﻿import express from "express";
-import cors from "cors";
-import fetch from "node-fetch";
+﻿import express from 'express';
+import cors from 'cors';
+import fetch from 'node-fetch';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-
 app.use(cors());
 app.use(express.json());
-app.use(express.static("public"));
+app.use(express.static('public'));
 
-function reqToken(res){
-  const token = process.env.FINNHUB_API_KEY;
-  if(!token){
-    res.status(500).json({error:"FINNHUB_API_KEY missing"});
-    return null;
-  }
-  return token;
-}
-async function getJSON(url){
-  const r = await fetch(url, { timeout: 15000 });
-  if(!r.ok) throw new Error(`${r.status} ${await r.text().catch(()=>r.statusText)}`);
-  return r.json();
-}
+const PORT = process.env.PORT || 3000;
+const FINN = process.env.FINNHUB_API_KEY;
 
-app.get("/api/health", (req,res)=> res.json({ok:true, time:new Date().toISOString()}));
-
-/** /api/search?ticker=AAPL -> {symbol, price, expirations[]} */
-app.get("/api/search", async (req,res)=>{
-  try{
-    const symbol = String(req.query.ticker||req.query.symbol||"").toUpperCase();
-    if(!symbol) return res.status(400).json({error:"ticker required"});
-    const token = reqToken(res); if(!token) return;
-
-    const [chain, quote] = await Promise.all([
-      getJSON(`https://finnhub.io/api/v1/stock/option-chain?symbol=${symbol}&token=${token}`),
-      getJSON(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${token}`)
-    ]);
-
-    const exps = Array.isArray(chain?.data) ? [...new Set(chain.data.map(x=>x.expirationDate).filter(Boolean))].sort() : [];
-    res.json({ symbol, price: quote?.c ?? null, expirations: exps });
-  }catch(e){ res.status(502).json({error:String(e)}) }
+app.get('/api/health', (req,res)=> {
+  res.json({ ok:true, port: PORT, finnhub: !!FINN });
 });
 
-/** /api/flow2?ticker=AAPL&date=YYYY-MM-DD&limit=60 */
-app.get("/api/flow2", async (req,res)=>{
-  try{
-    const symbol = String(req.query.ticker||req.query.symbol||"").toUpperCase();
-    const date   = String(req.query.date||"").trim();
-    const limit  = Math.max(1, Math.min(200, Number(req.query.limit)||60));
-    if(!symbol) return res.status(400).json({error:"ticker required"});
-    const token = reqToken(res); if(!token) return;
+function pickNearestWithData(chain, wantDate) {
+  const all = Array.isArray(chain?.data) ? chain.data : [];
+  if (all.length === 0) return null;
+  // prefer exact date that has options
+  let exact = all.find(x => x.expirationDate === wantDate && ((x.options?.CALL?.length||0) + (x.options?.PUT?.length||0) > 0));
+  if (exact) return exact;
+  // else first with data, or first overall
+  const withData = all.filter(x => (x.options?.CALL?.length||0) + (x.options?.PUT?.length||0) > 0);
+  return withData[0] || all[0];
+}
 
-    const chain = await getJSON(`https://finnhub.io/api/v1/stock/option-chain?symbol=${symbol}&token=${token}`);
-    const rows  = Array.isArray(chain?.data) ? chain.data : [];
+app.get('/api/search', async (req,res) => {
+  try {
+    const symbol = String(req.query.ticker || req.query.symbol || '').toUpperCase().trim();
+    if (!symbol) return res.status(400).json({ error:'ticker required' });
+    if (!FINN) return res.status(500).json({ error:'FINNHUB_API_KEY missing' });
 
-    let exp = rows.find(r=>r.expirationDate===date);
-    if(!exp){
-      const withOpts = rows.filter(r=>(r.options?.CALL?.length || r.options?.PUT?.length));
-      exp = withOpts[0] || null;
-    }
-    if(!exp) return res.json({symbol, date:null, count:0, items:[]});
+    const url = new URL('https://finnhub.io/api/v1/stock/option-chain');
+    url.searchParams.set('symbol', symbol);
+    url.searchParams.set('token', FINN);
 
-    const items=[];
-    const push=(arr,side)=>{
-      for(const o of (arr||[])){
-        const volume=Number(o.volume||0);
-        const oi=Number(o.openInterest||0);
-        const bid=Number(o.bid||0), ask=Number(o.ask||0), last=Number(o.lastPrice||0);
-        const mid=(bid>0&&ask>0)?(bid+ask)/2:0;
-        const px= last>0?last:mid;
-        const strike=Number(o.strike||0);
-        const prem=Math.max(0, px*volume*100);
-        if(prem>0) items.push({side, strike, volume, oi, bid, ask, last, premium:Math.round(prem)});
+    const r = await fetch(url, { timeout: 15000 });
+    if (!r.ok) return res.status(502).json({ error:'upstream', status:r.status, text: await r.text().catch(()=>r.statusText) });
+    const data = await r.json();
+
+    const exps = (Array.isArray(data?.data) ? data.data : []).map(x => x.expirationDate).filter(Boolean);
+    const unique = [...new Set(exps)];
+    res.json({ symbol, expirations: unique });
+  } catch (e) {
+    console.error('search error', e);
+    res.status(500).json({ error:'search failure', detail: String(e?.message || e) });
+  }
+});
+
+app.get('/api/flow2', async (req,res) => {
+  try {
+    const symbol = String(req.query.ticker || req.query.symbol || '').toUpperCase().trim();
+    const date   = String(req.query.date || '').trim();
+    const limit  = Math.max(1, Math.min(200, Number(req.query.limit) || 25));
+    if (!symbol) return res.status(400).json({ error:'ticker required' });
+    if (!FINN)   return res.status(500).json({ error:'FINNHUB_API_KEY missing' });
+
+    const url = new URL('https://finnhub.io/api/v1/stock/option-chain');
+    url.searchParams.set('symbol', symbol);
+    url.searchParams.set('token', FINN);
+
+    const r = await fetch(url, { timeout: 20000 });
+    if (!r.ok) return res.status(502).json({ error:'upstream', status:r.status, text: await r.text().catch(()=>r.statusText) });
+    const chain = await r.json();
+
+    const exp = pickNearestWithData(chain, date);
+    if (!exp) return res.json({ symbol, date: date || null, count:0, items:[] });
+
+    const items = [];
+    const pushSide = (arr, side) => {
+      for (const o of (arr||[])) {
+        const volume = Number(o.volume||0);
+        const oi     = Number(o.openInterest||0);
+        const bid    = Number(o.bid||0);
+        const ask    = Number(o.ask||0);
+        const last   = Number(o.lastPrice||0);
+        const mid    = (bid>0 && ask>0) ? (bid+ask)/2 : 0;
+        const px     = last>0 ? last : mid;
+        const strike = Number(o.strike||0);
+        const prem   = px * volume * 100;
+        if (prem > 0) {
+          items.push({
+            side,
+            strike,
+            volume,
+            oi,
+            bid, ask, last,
+            iv: Number(o.impliedVolatility||0),
+            premium: Math.round(prem)
+          });
+        }
       }
     };
-    push(exp.options?.CALL,'CALL');
-    push(exp.options?.PUT,'PUT');
+    pushSide(exp.options?.CALL, 'CALL');
+    pushSide(exp.options?.PUT,  'PUT');
 
-    items.sort((a,b)=>b.premium-a.premium);
-    res.json({symbol, date:exp.expirationDate, count:items.length, items:items.slice(0,limit)});
-  }catch(e){ res.status(502).json({error:String(e)}) }
+    items.sort((a,b)=> b.premium - a.premium);
+    res.json({ symbol, date: exp.expirationDate || date || null, count: items.length, items: items.slice(0, limit) });
+  } catch (e) {
+    console.error('flow2 error', e);
+    res.status(500).json({ error:'flow2 failure', detail: String(e?.message || e) });
+  }
 });
 
-/** /api/grid2?ticker=AAPL&rows=20&cols=4
- * Build a simple heatmap from option-chain: net premium per strike (calls - puts)
- * using nearest expirations.
- */
-app.get("/api/grid2", async (req,res)=>{
-  try{
-    const symbol = String(req.query.ticker||"").toUpperCase();
-    const rowsN  = Math.max(5, Math.min(50, Number(req.query.rows)||20));
-    const colsN  = Math.max(1, Math.min(6, Number(req.query.cols)||4));
-    if(!symbol) return res.status(400).json({error:"ticker required"});
-    const token = reqToken(res); if(!token) return;
+app.get('/api/grid2', async (req,res) => {
+  try {
+    const symbol = String(req.query.ticker || req.query.symbol || '').toUpperCase().trim();
+    const date   = String(req.query.date || '').trim();
+    const rows   = Math.max(3, Math.min(25, Number(req.query.rows) || 10));
+    const limit  = Math.max(1, Math.min(2000, Number(req.query.limit) || 200));
+    if (!symbol) return res.status(400).json({ error:'ticker required' });
+    if (!FINN)   return res.status(500).json({ error:'FINNHUB_API_KEY missing' });
 
-    const chain = await getJSON(`https://finnhub.io/api/v1/stock/option-chain?symbol=${symbol}&token=${token}`);
-    const all   = Array.isArray(chain?.data)?chain.data:[];
-    const byExp = all
-      .filter(x => (x.options?.CALL?.length || x.options?.PUT?.length))
-      .sort((a,b)=> a.expirationDate.localeCompare(b.expirationDate))
-      .slice(0, colsN);
+    const url = new URL('https://finnhub.io/api/v1/stock/option-chain');
+    url.searchParams.set('symbol', symbol);
+    url.searchParams.set('token', FINN);
 
-    const columns=[];
-    for(const exp of byExp){
-      const map=new Map(); // strike -> {callPrem, putPrem}
-      const add=(arr,sign)=>{
-        for(const o of (arr||[])){
-          const vol=Number(o.volume||0);
-          const bid=Number(o.bid||0), ask=Number(o.ask||0), last=Number(o.lastPrice||0);
-          const px= last>0?last:((bid>0&&ask>0)?(bid+ask)/2:0);
-          const prem=px*vol*100*sign;
-          const k=Number(o.strike||0);
-          if(!map.has(k)) map.set(k,{v:0});
-          map.get(k).v += prem;
-        }
-      };
-      add(exp.options?.CALL, +1);
-      add(exp.options?.PUT , -1);
+    const r = await fetch(url, { timeout: 20000 });
+    if (!r.ok) return res.status(502).json({ error:'upstream', status:r.status, text: await r.text().catch(()=>r.statusText) });
+    const chain = await r.json();
 
-      const items=[...map.entries()]
-        .sort((a,b)=>a[0]-b[0])
-        .slice(0, rowsN)
-        .map(([k,obj])=>({strike:k, value: Math.round(obj.v)}));
+    const exp = pickNearestWithData(chain, date);
+    if (!exp) return res.json({ symbol, date: date || null, strikes:[], netMatrix:[], rows });
 
-      columns.push({ expiry: exp.expirationDate, items });
+    const map = new Map(); // strike -> net premium (CALL +, PUT -)
+    const add = (arr, sign) => {
+      for (const o of (arr||[])) {
+        const volume = Number(o.volume||0);
+        const bid    = Number(o.bid||0);
+        const ask    = Number(o.ask||0);
+        const last   = Number(o.lastPrice||0);
+        const mid    = (bid>0 && ask>0) ? (bid+ask)/2 : 0;
+        const px     = last>0 ? last : mid;
+        const prem   = px * volume * 100 * sign;
+        const strike = Number(o.strike||0);
+        if (!Number.isFinite(strike) || strike<=0) continue;
+        const cur = map.get(strike) || 0;
+        map.set(strike, cur + (Number.isFinite(prem) ? prem : 0));
+      }
+    };
+    add(exp.options?.CALL, +1);
+    add(exp.options?.PUT,  -1);
+
+    const pairs = [...map.entries()].map(([strike, value]) => ({ strike, value: Math.round(value) }));
+    pairs.sort((a,b)=> a.strike - b.strike);
+
+    // pick a window of strikes around max net premium
+    let top = pairs.toSorted((a,b)=> Math.abs(b.value) - Math.abs(a.value)).slice(0, rows);
+    let strikes = [...new Set(top.map(x => x.strike))].sort((a,b)=> a-b);
+    if (strikes.length < rows && pairs.length > 0) {
+      // pad with neighbors
+      strikes = pairs.slice(0, Math.min(rows, pairs.length)).map(p=>p.strike);
     }
-    res.json({symbol, columns});
-  }catch(e){ res.status(502).json({error:String(e)}) }
+
+    const netMatrix = strikes.map(s => {
+      const f = pairs.find(p => p.strike === s) || { strike:s, value:0 };
+      return f;
+    });
+
+    res.json({ symbol, date: exp.expirationDate || date || null, strikes, netMatrix, rows });
+  } catch (e) {
+    console.error('grid2 error', e);
+    res.status(500).json({ error:'grid2 failure', detail: String(e?.message || e) });
+  }
 });
 
-app.listen(PORT, ()=> console.log(`API listening on http://localhost:${PORT}`));
+app.listen(PORT, '0.0.0.0', () => {
+  console.log("API listening on http://localhost:");
+});

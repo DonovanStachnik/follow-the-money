@@ -1,0 +1,78 @@
+﻿import type { NextApiRequest, NextApiResponse } from "next";
+import { fhExpirations, fhOptions, premiumUSD } from "../../utils/finnhub";
+
+type GridPayload = {
+  symbol: string;
+  expirations: string[];
+  strikes: number[];
+  callMatrix: number[][];
+  putMatrix: number[][];
+  netMatrix: number[][];
+};
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  try {
+    const ticker = String(req.query.ticker || "").trim().toUpperCase();
+    const limit  = Math.min(Math.max(Number(req.query.limit || 6), 1), 12);
+    if (!ticker) return res.status(400).json({ error: "ticker required" });
+
+    const expirations = (await fhExpirations(ticker)).slice(0, limit);
+    if (!expirations.length) {
+      const empty: GridPayload = { symbol: ticker, expirations: [], strikes: [], callMatrix: [], putMatrix: [], netMatrix: [] };
+      return res.status(200).json(empty);
+    }
+
+    // Build per-exp data
+    type PerExp = { calls: Map<number, number>; puts: Map<number, number> };
+    const per: PerExp[] = [];
+    const allStrikes = new Set<number>();
+
+    for (const dateISO of expirations) {
+      const { calls, puts } = await fhOptions(ticker, dateISO);
+      const cMap = new Map<number, number>();
+      const pMap = new Map<number, number>();
+
+      for (const c of calls) {
+        if (c.strike == null) continue;
+        const prem = premiumUSD(c);
+        if (prem > 0) { cMap.set(c.strike!, (cMap.get(c.strike!) || 0) + prem); allStrikes.add(c.strike!); }
+      }
+      for (const p of puts) {
+        if (p.strike == null) continue;
+        const prem = premiumUSD(p);
+        if (prem > 0) { pMap.set(p.strike!, (pMap.get(p.strike!) || 0) + prem); allStrikes.add(p.strike!); }
+      }
+
+      per.push({ calls: cMap, puts: pMap });
+    }
+
+    let strikes = Array.from(allStrikes.values()).sort((a,b)=>a-b);
+    const MAX_ROWS = 80;
+    if (strikes.length > MAX_ROWS) {
+      const step = Math.ceil(strikes.length / MAX_ROWS);
+      strikes = strikes.filter((_, i) => i % step === 0);
+    }
+
+    const rows = strikes.length, cols = expirations.length;
+    const callMatrix = Array.from({ length: rows }, () => Array(cols).fill(0));
+    const putMatrix  = Array.from({ length: rows }, () => Array(cols).fill(0));
+    const netMatrix  = Array.from({ length: rows }, () => Array(cols).fill(0));
+
+    for (let col=0; col<cols; col++) {
+      const { calls, puts } = per[col];
+      for (let r=0; r<rows; r++) {
+        const k = strikes[r];
+        const c = calls.get(k) || 0;
+        const p = puts.get(k)  || 0;
+        callMatrix[r][col] = c;
+        putMatrix[r][col]  = p;
+        netMatrix[r][col]  = c - p;
+      }
+    }
+
+    const payload: GridPayload = { symbol: ticker, expirations, strikes, callMatrix, putMatrix, netMatrix };
+    res.status(200).json(payload);
+  } catch (e:any) {
+    res.status(500).json({ error: e?.message || String(e) });
+  }
+}

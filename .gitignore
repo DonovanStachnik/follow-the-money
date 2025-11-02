@@ -1,0 +1,13 @@
+﻿node_modules/
+.next/
+dist/
+build/
+coverage/
+.env
+*.log
+*.bak
+*.backup*
+public/*.backup*.html
+server/*.bak*
+.vscode/
+.DS_Store

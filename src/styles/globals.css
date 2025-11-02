@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #__next { height: 100%; }
+body { @apply bg-slate-900 text-slate-100 antialiased; }
+.card { @apply bg-slate-800/80 border border-slate-700 rounded-2xl p-4 shadow-lg; }
+.btn { @apply inline-flex items-center justify-center rounded-lg px-3 py-2 bg-indigo-600 hover:bg-indigo-700 transition; }
+.input { @apply w-full rounded-lg px-3 py-2 bg-slate-800 border border-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500; }
+.section-title { @apply text-xl font-semibold mb-3; }
+.subtle { @apply text-slate-400 text-sm; }

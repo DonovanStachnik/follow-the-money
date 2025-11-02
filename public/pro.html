@@ -1,0 +1,134 @@
+﻿<!doctype html><html><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>FollowTheMoney — Pro</title>
+<style>
+  body{margin:0;background:#0f172a;color:#e5e7eb;font-family:ui-sans-serif,system-ui,-apple-system}
+  .wrap{max-width:1200px;margin:0 auto;padding:24px 18px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  input,select,button{background:#0b1220;color:#e5e7eb;border:1px solid #1f2937;padding:9px 10px;border-radius:10px}
+  button{cursor:pointer}
+  .panel{background:#0b1220;border:1px solid #1f2937;border-radius:14px;padding:14px;margin-top:18px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;margin-top:12px}
+  .cell{padding:10px;border-radius:10px;text-align:center}
+  .pos{background:#064e3b} .neg{background:#3b0764} .neu{background:#1f2937}
+  .item{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px dashed #1f2937}
+  .badge{font-size:12px;padding:3px 8px;border-radius:999px}
+  .call{background:#065f46;color:#bbf7d0} .put{background:#6d28d9;color:#f5d0fe}
+  .muted{color:#94a3b8}
+</style>
+</head><body>
+<header style="background:#0b1220;border-bottom:1px solid #1f2937">
+  <div style="max-width:1200px;margin:0 auto;padding:14px 18px;display:flex;gap:16px;align-items:center">
+    <div style="font-weight:800;letter-spacing:.3px"><img src="/logo.svg" alt="" style="width:22px;height:22px;vertical-align:middle;margin-right:10px">FollowTheMoney</div>
+    <nav style="display:flex;gap:14px">
+      <a href="/" style="color:#e5e7eb;text-decoration:none">Home</a>
+      <a href="/pro.html" style="color:#e5e7eb;text-decoration:none">Pro</a>
+      <a href="/disclaimer.html" style="color:#e5e7eb;text-decoration:none">Disclaimer</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <h1 style="margin:8px 0 6px">Pro — Heatmap & Flow</h1>
+  <div class="row">
+    <label>Ticker <input id="ticker" value="AAPL" style="width:110px"></label>
+    <label>Expiry <select id="expiry"></select></label>
+    <button id="search">Search</button>
+    <span id="status" class="muted"></span>
+  </div>
+
+  <div class="panel">
+    <div class="muted" style="margin-bottom:8px">Source: /api/grid2 (multi-expiry). Positive = net call premium, Negative = net put premium.</div>
+    <div id="grid" class="grid"></div>
+  </div>
+
+  <div class="panel">
+    <div class="muted" style="margin-bottom:8px">Source: /api/flow2 (uses bid/ask/last; CALL/PUT premium = price × volume × 100).</div>
+    <div id="flow"></div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const fmt = n => {
+  const a = Math.abs(n);
+  if (a >= 1e9) return (n/1e9).toFixed(1)+'B';
+  if (a >= 1e6) return (n/1e6).toFixed(1)+'M';
+  if (a >= 1e3) return (n/1e3).toFixed(1)+'K';
+  return (n||0).toFixed(0);
+};
+const color = v => v>1_000_000?'pos':(v<-1_000_000?'neg':'neu');
+
+async function j(url){
+  const r = await fetch(url, {cache:'no-store'});
+  if(!r.ok) throw new Error(await r.text().catch(()=>r.statusText));
+  return r.json();
+}
+
+async function loadExpirations(){
+  const sym = #ticker.value.trim().toUpperCase();
+  const s = await j(/api/search?ticker=);
+  const list = (s && s.expirations)||[];
+  const sel = #expiry; sel.innerHTML='';
+  for(const d of list){ const o=document.createElement('option'); o.value=d; o.textContent=d; sel.appendChild(o); }
+  if(!sel.options.length){ const o=document.createElement('option'); o.value=''; o.textContent='(none)'; sel.appendChild(o); }
+}
+
+async function loadAll(){
+  const sym = #ticker.value.trim().toUpperCase();
+  const exp = #expiry.value;
+  #status.textContent = "Loading…";
+  try{
+    // grid2 may ignore expiry and return columns; fall back to grid (single)
+    let grid;
+    try { grid = await j(/api/grid2?ticker=&rows=20&cols=4); }
+    catch { grid = await j(/api/grid?ticker=&limit=20); }
+
+    const flow = await j(/api/flow2?ticker=&date=&limit=60);
+
+    const g = #grid; g.innerHTML='';
+    // Accept both shapes: multi-col ({columns:[{items:[]}]}) or flat ({netMatrix:[]})
+    if(grid && Array.isArray(grid.columns)){
+      for(const col of grid.columns){
+        for(const c of (col.items||[])){
+          const d=document.createElement('div'); d.className = 'cell '+color(c.value||0);
+          d.textContent = ${c.strike} • ;
+          g.appendChild(d);
+        }
+      }
+    } else if (grid && Array.isArray(grid.netMatrix)){
+      for(const c of grid.netMatrix){
+        const d=document.createElement('div'); d.className = 'cell '+color(c.value||0);
+        d.textContent = ${c.strike} • ;
+        g.appendChild(d);
+      }
+    }
+
+    const f = #flow; f.innerHTML='';
+    for(const it of (flow.items||[])){
+      const row=document.createElement('div'); row.className='item';
+      const left=document.createElement('div');
+      const badge=document.createElement('span'); badge.className='badge '+(it.side==='CALL'?'call':'put'); badge.textContent=it.side||'?';
+      left.appendChild(badge);
+      left.insertAdjacentHTML('beforeend',  <span>Strike <b></b></span> <span class="muted">Vol </span> <span class="muted">OI </span>);
+      const right=document.createElement('div'); right.textContent = '$'+fmt(it.premium||0);
+      row.appendChild(left); row.appendChild(right); f.appendChild(row);
+    }
+
+    #status.textContent = OK •  •  • ;
+  }catch(e){
+    #status.textContent = 'Error: '+(e.message||e);
+    console.error(e);
+  }
+}
+
+async function init(){
+  try{ await loadExpirations(); await loadAll(); }catch(e){ #status.textContent = 'Init error: '+(e.message||e); console.error(e); }
+}
+document.getElementById('search').addEventListener('click', loadAll);
+document.getElementById('expiry').addEventListener('change', loadAll);
+document.getElementById('ticker').addEventListener('keydown', e => { if(e.key==='Enter') loadAll(); });
+
+init();
+</script>
+</body></html>

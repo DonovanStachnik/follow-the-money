@@ -1,0 +1,130 @@
+﻿<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>HeatSeeker Debug</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body{font-family: ui-sans-serif, system-ui, -apple-system; background:#0b1220; color:#e5e7eb; padding:20px}
+    h1{font-size:20px;margin:0 0 12px}
+    .row{display:flex;gap:12px;align-items:center;margin-bottom:12px}
+    input,select,button{background:#111827;color:#e5e7eb;border:1px solid #374151;padding:8px 10px;border-radius:8px}
+    button{cursor:pointer}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;margin-top:12px}
+    .cell{padding:10px;border-radius:10px;text-align:center}
+    .pos{background:#064e3b} .neg{background:#3b0764} .neu{background:#1f2937}
+    .panel{background:#0f172a;border:1px solid #1f2937;border-radius:12px;padding:12px;margin-top:18px}
+    .item{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed #1f2937}
+    .badge{font-size:12px;padding:2px 8px;border-radius:999px}
+    .call{background:#065f46;color:#bbf7d0} .put{background:#6d28d9;color:#f5d0fe}
+  </style>
+</head>
+<body>
+  <h1>HeatSeeker Debug (direct → /api via Vite proxy)</h1>
+  <div class="row">
+    <label>Ticker <input id="ticker" value="AAPL" style="width:100px"></label>
+    <label>Date
+      <select id="date"></select>
+    </label>
+    <button id="btn">Load</button>
+    <span id="status"></span>
+  </div>
+
+  <div class="panel">
+    <h2 style="margin:0 0 8px;font-size:16px">Heatmap (net premium by strike)</h2>
+    <div id="grid" class="grid"></div>
+  </div>
+
+  <div class="panel">
+    <h2 style="margin:0 0 8px;font-size:16px">Options Flow (top premiums)</h2>
+    <div id="flow"></div>
+  </div>
+
+  <script>
+    const $t = document.getElementById('ticker');
+    const $d = document.getElementById('date');
+    const $s = document.getElementById('status');
+    const $g = document.getElementById('grid');
+    const $f = document.getElementById('flow');
+
+    async function fetchJSON(url){
+      const r = await fetch(url, { cache: 'no-store' });
+      if(!r.ok){ throw new Error(await r.text().catch(_=>r.statusText)); }
+      return r.json();
+    }
+
+    async function init(){
+      try {
+        $s.textContent = 'loading expirations…';
+        const t = $t.value.trim().toUpperCase();
+        const search = await fetchJSON(`/api/search?ticker=${t}`);
+        $d.innerHTML = '';
+        for(const exp of search.expirations||[]) {
+          const opt = document.createElement('option');
+          opt.value = exp; opt.textContent = exp;
+          $d.appendChild(opt);
+        }
+        if ($d.options.length) $d.selectedIndex = 0;
+        $s.textContent = 'ready';
+      } catch(e){
+        $s.textContent = 'search error: ' + e.message;
+      }
+    }
+
+    function color(v){
+      if (v > 1_000_000) return 'pos';
+      if (v < -1_000_000) return 'neg';
+      return 'neu';
+    }
+    const fmt = n => {
+      const a = Math.abs(n);
+      if (a >= 1e6) return (n/1e6).toFixed(1)+'M';
+      if (a >= 1e3) return (n/1e3).toFixed(1)+'K';
+      return n.toFixed(0);
+    };
+
+    async function load(){
+      try{
+        const t = $t.value.trim().toUpperCase();
+        const d = $d.value;
+        $s.textContent = 'loading grid/flow…';
+        const [grid, flow] = await Promise.all([
+          fetchJSON(`/api/grid?ticker=${t}&date=${d}&limit=24`),
+          fetchJSON(`/api/flow?ticker=${t}&date=${d}&limit=25`),
+        ]);
+
+        // Heatmap
+        $g.innerHTML = '';
+        for (const cell of grid.netMatrix||[]) {
+          const div = document.createElement('div');
+          div.className = `cell ${color(cell.value)}`;
+          div.textContent = `${cell.strike} • ${fmt(cell.value)}`;
+          $g.appendChild(div);
+        }
+
+        // Flow
+        $f.innerHTML = '';
+        for (const it of (flow.items||[])) {
+          const row = document.createElement('div'); row.className = 'item';
+          const left = document.createElement('div');
+          const badge = document.createElement('span');
+          badge.className = 'badge ' + (it.side === 'CALL' ? 'call' : 'put');
+          badge.textContent = it.side;
+          left.appendChild(badge);
+          left.insertAdjacentHTML('beforeend', ` <span>Strike <b>${it.strike}</b></span> <span style="color:#9ca3af">Vol ${it.volume}</span> <span style="color:#9ca3af">OI ${it.oi}</span>`);
+          const right = document.createElement('div'); right.textContent = '$' + fmt(it.premium);
+          row.appendChild(left); row.appendChild(right);
+          $f.appendChild(row);
+        }
+
+        $s.textContent = `ok • ${t} • ${d}`;
+      } catch(e){
+        $s.textContent = 'load error: ' + e.message;
+      }
+    }
+
+    document.getElementById('btn').addEventListener('click', load);
+    init();
+  </script>
+</body>
+</html>

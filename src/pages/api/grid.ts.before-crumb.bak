@@ -1,0 +1,205 @@
+﻿import type { NextApiRequest, NextApiResponse } from "next";
+import { fhExpirations, fhOptions, premiumUSD } from "../../utils/finnhub";
+
+/** ---------- Yahoo fallback helpers (no API key needed) ---------- */
+const Y_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36";
+
+async function yfetch<T = any>(url: string): Promise<T> {
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": Y_UA,
+      "Accept": "application/json, text/plain, */*",
+      "Accept-Language": "en-US,en;q=0.9",
+      "Cache-Control": "no-cache",
+      "Pragma": "no-cache",
+      "Connection": "keep-alive",
+    },
+    next: { revalidate: 0 },
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(()=>"");
+    throw new Error(`Yahoo HTTP ${res.status} :: ${txt.slice(0,200)}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+type YOpt = { strike?: number; lastPrice?: number; bid?: number; ask?: number; volume?: number };
+type YChain = {
+  optionChain?: { result?: Array<{ options?: Array<{ calls?: YOpt[]; puts?: YOpt[] }>; quote?: any }> };
+};
+function yPremium(o: YOpt): number {
+  const px = Number(o.lastPrice ?? ((o.bid ?? 0) + (o.ask ?? 0))/2) || 0;
+  const vol = Number(o.volume ?? 0) || 0;
+  return px * vol * 100;
+}
+async function yOptions(symbol: string, unixDate: number) {
+  const base = "https://query1.finance.yahoo.com/v7/finance/options";
+  const url  = `${base}/${encodeURIComponent(symbol)}?date=${unixDate}`;
+  const json = await yfetch<YChain>(url);
+  const first = json?.optionChain?.result?.[0];
+  const set   = first?.options?.[0] ?? {};
+  const calls = (set.calls ?? []) as YOpt[];
+  const puts  = (set.puts  ?? []) as YOpt[];
+  return { calls, puts };
+}
+
+/** Compute next N Fridays (US equity expirations) */
+function nextFridays(n: number): string[] {
+  const out: string[] = [];
+  const d = new Date(); d.setHours(0,0,0,0);
+  while (out.length < n) {
+    d.setDate(d.getDate() + 1);
+    if (d.getDay() === 5) { // Friday
+      out.push(d.toISOString().slice(0,10));
+    }
+  }
+  return out;
+}
+/** ISO -> unix seconds */
+function isoToUnix(iso: string): number {
+  return Math.floor(new Date(iso + "T00:00:00Z").getTime()/1000);
+}
+
+/** ---------- Payload types ---------- */
+type GridPayload = {
+  symbol: string;
+  expirations: string[];
+  strikes: number[];
+  callMatrix: number[][];
+  putMatrix: number[][];
+  netMatrix: number[][];
+};
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  try {
+    const ticker = String(req.query.ticker || "").trim().toUpperCase();
+    const limit  = Math.min(Math.max(Number(req.query.limit || 6), 1), 12);
+    if (!ticker) return res.status(400).json({ error: "ticker required" });
+
+    /** 1) Try FINNHUB first */
+    let dates: string[] = [];
+    try {
+      dates = (await fhExpirations(ticker)).slice(0, limit);
+    } catch (_e) {
+      // ignore and fall back
+    }
+
+    let strikesSet = new Set<number>();
+    let per: { calls: Map<number,number>, puts: Map<number,number> }[] = [];
+
+    async function buildFromFinnhub(d: string[]) {
+      const tmpPer: typeof per = [];
+      const tmpStrikes = new Set<number>();
+      for (const dateISO of d) {
+        const { calls, puts } = await fhOptions(ticker, dateISO);
+        const cMap = new Map<number, number>();
+        const pMap = new Map<number, number>();
+        for (const c of calls) {
+          if (c.strike == null) continue;
+          const prem = premiumUSD(c);
+          if (prem > 0) {
+            cMap.set(c.strike!, (cMap.get(c.strike!) || 0) + prem);
+            tmpStrikes.add(c.strike!);
+          }
+        }
+        for (const p of puts) {
+          if (p.strike == null) continue;
+          const prem = premiumUSD(p);
+          if (prem > 0) {
+            pMap.set(p.strike!, (pMap.get(p.strike!) || 0) + prem);
+            tmpStrikes.add(p.strike!);
+          }
+        }
+        tmpPer.push({ calls: cMap, puts: pMap });
+      }
+      return { tmpPer, tmpStrikes };
+    }
+
+    async function buildFromYahoo() {
+      const guess = nextFridays(limit);
+      const tmpPer: typeof per = [];
+      const tmpStrikes = new Set<number>();
+      for (const iso of guess) {
+        const { calls, puts } = await yOptions(ticker, isoToUnix(iso));
+        const cMap = new Map<number, number>();
+        const pMap = new Map<number, number>();
+        for (const c of calls) {
+          if (c.strike == null) continue;
+          const prem = yPremium(c);
+          if (prem > 0) {
+            cMap.set(c.strike!, (cMap.get(c.strike!) || 0) + prem);
+            tmpStrikes.add(c.strike!);
+          }
+        }
+        for (const p of puts) {
+          if (p.strike == null) continue;
+          const prem = yPremium(p);
+          if (prem > 0) {
+            pMap.set(p.strike!, (pMap.get(p.strike!) || 0) + prem);
+            tmpStrikes.add(p.strike!);
+          }
+        }
+        tmpPer.push({ calls: cMap, puts: pMap });
+      }
+      return { dates: guess, tmpPer, tmpStrikes };
+    }
+
+    if (dates.length) {
+      try {
+        const { tmpPer, tmpStrikes } = await buildFromFinnhub(dates);
+        per = tmpPer; strikesSet = tmpStrikes;
+      } catch (_e) {
+        dates = []; // force Yahoo fallback
+      }
+    }
+
+    if (!dates.length || per.length === 0) {
+      // Yahoo fallback (no key)
+      const y = await buildFromYahoo();
+      dates = y.dates; per = y.tmpPer; strikesSet = y.tmpStrikes;
+    }
+
+    if (!dates.length || per.length === 0) {
+      const empty: GridPayload = { symbol: ticker, expirations: [], strikes: [], callMatrix: [], putMatrix: [], netMatrix: [] };
+      return res.status(200).json(empty);
+    }
+
+    let strikes = Array.from(strikesSet.values()).sort((a,b)=>a-b);
+    const MAX_ROWS = 80;
+    if (strikes.length > MAX_ROWS) {
+      const step = Math.ceil(strikes.length / MAX_ROWS);
+      strikes = strikes.filter((_,i)=> i % step === 0);
+    }
+
+    const rows = strikes.length;
+    const cols = dates.length;
+    const callMatrix = Array.from({length: rows}, ()=>Array(cols).fill(0));
+    const putMatrix  = Array.from({length: rows}, ()=>Array(cols).fill(0));
+    const netMatrix  = Array.from({length: rows}, ()=>Array(cols).fill(0));
+
+    for (let col=0; col<cols; col++) {
+      const { calls, puts } = per[col];
+      for (let r=0; r<rows; r++) {
+        const k = strikes[r];
+        const c = calls.get(k) || 0;
+        const p = puts.get(k)  || 0;
+        callMatrix[r][col] = c;
+        putMatrix[r][col]  = p;
+        netMatrix[r][col]  = c - p;
+      }
+    }
+
+    const payload: GridPayload = {
+      symbol: ticker,
+      expirations: dates,
+      strikes,
+      callMatrix,
+      putMatrix,
+      netMatrix,
+    };
+    res.status(200).json(payload);
+  } catch (e:any) {
+    res.status(500).json({ error: e?.message || String(e) });
+  }
+}

@@ -1,0 +1,113 @@
+﻿<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>HeatSeeker — Pro</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body{font-family:ui-sans-serif,system-ui;background:#0b1220;color:#e5e7eb;padding:20px}
+    h1{margin:0 0 12px}
+    .row{display:flex;gap:12px;align-items:center;margin-bottom:12px}
+    input,select,button{background:#111827;color:#e5e7eb;border:1px solid #374151;padding:8px 10px;border-radius:8px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(115px,1fr));gap:6px;margin-top:12px}
+    .cell{padding:10px;border-radius:10px;text-align:center}
+    .pos{background:#064e3b} .neg{background:#3b0764} .neu{background:#1f2937}
+    .panel{background:#0f172a;border:1px solid #1f2937;border-radius:12px;padding:12px;margin-top:18px}
+    .item{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed #1f2937}
+    .badge{font-size:12px;padding:2px 8px;border-radius:999px}
+    .call{background:#065f46;color:#bbf7d0} .put{background:#6d28d9;color:#f5d0fe}
+  </style>
+</head>
+<body>
+  <h1>HeatSeeker Pro</h1>
+  <div class="row">
+    <label>Ticker <input id="ticker" value="AAPL" style="width:100px"></label>
+    <label>Expiry <select id="expiry"></select></label>
+    <button id="search">Search</button>
+    <span id="status"></span>
+  </div>
+
+  <div class="panel">
+    <h2 style="margin:0 0 8px;font-size:16px">Heatmap (net premium by strike)</h2>
+    <div id="grid" class="grid"></div>
+  </div>
+
+  <div class="panel">
+    <h2 style="margin:0 0 8px;font-size:16px">Options Flow (top premiums)</h2>
+    <div id="flow"></div>
+  </div>
+
+  <script>
+    const $ = sel => document.querySelector(sel);
+    const $t = $("#ticker"), $e = $("#expiry"), $s = $("#status"), $g = $("#grid"), $f = $("#flow");
+
+    async function j(url){
+      const r = await fetch(url, { cache: "no-store" });
+      if(!r.ok) throw new Error(await r.text().catch(()=>r.statusText));
+      return r.json();
+    }
+    const fmt = n => {
+      const a = Math.abs(n);
+      if (a >= 1e6) return (n/1e6).toFixed(1)+"M";
+      if (a >= 1e3) return (n/1e3).toFixed(1)+"K";
+      return String(Math.round(n));
+    };
+    function color(v){ if(v>1_000_000) return "pos"; if(v<-1_000_000) return "neg"; return "neu"; }
+
+    async function init(){
+      try{
+        $s.textContent = "loading expirations…";
+        const t = $t.value.trim().toUpperCase();
+        const search = await j(`/api/search?ticker=${t}`);
+        $e.innerHTML = "";
+        (search.expirations||[]).forEach(exp => {
+          const opt = document.createElement("option");
+          opt.value = exp; opt.textContent = exp; $e.appendChild(opt);
+        });
+        if ($e.options.length) $e.selectedIndex = 0;
+        $s.textContent = "ready";
+      }catch(e){ $s.textContent = "search error: " + (e.message||e); }
+    }
+
+    async function loadAll(){
+      const sym = $t.value.trim().toUpperCase();
+      const exp = $e.value;
+      $s.textContent = "loading…";
+      const [grid, flow] = await Promise.all([
+        j(`/api/grid?ticker=${sym}&date=${exp}&limit=24`),
+        j(`/api/flow?ticker=${sym}&date=${exp}&limit=60`)
+      ]);
+
+      // heatmap
+      $g.innerHTML = "";
+      (grid.netMatrix||[]).forEach(cell => {
+        const d = document.createElement("div");
+        d.className = "cell " + color(cell.value);
+        d.textContent = `${cell.strike} • ${fmt(cell.value)}`;
+        $g.appendChild(d);
+      });
+
+      // flow
+      $f.innerHTML = "";
+      (flow.items||[]).forEach(it => {
+        const row = document.createElement("div"); row.className = "item";
+        const left = document.createElement("div");
+        const badge = document.createElement("span"); badge.className = "badge " + (it.side==="CALL"?"call":"put"); badge.textContent = it.side;
+        left.appendChild(badge);
+        left.insertAdjacentHTML("beforeend", ` <span>Strike <b>${it.strike}</b></span> <span style="color:#9ca3af">Vol ${it.volume}</span> <span style="color:#9ca3af">OI ${it.oi}</span>`);
+        const right = document.createElement("div"); right.textContent = "$" + fmt(it.premium);
+        row.appendChild(left); row.appendChild(right);
+        $f.appendChild(row);
+      });
+
+      $s.textContent = `OK • ${sym} • ${exp} • ` + new Date().toLocaleTimeString();
+    }
+
+    $("#search").addEventListener("click", loadAll);
+    $e.addEventListener("change", loadAll);
+    $t.addEventListener("keydown", (e)=>{ if(e.key==="Enter") $("#search").click(); });
+
+    init();
+  </script>
+</body>
+</html>

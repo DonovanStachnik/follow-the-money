@@ -1,0 +1,222 @@
+﻿import type { NextApiRequest, NextApiResponse } from "next";
+import { fhExpirations, fhOptions, premiumUSD } from "../../utils/finnhub";
+
+/** ====================== Yahoo crumb-enabled fallback ====================== */
+type YOpt = { strike?: number; lastPrice?: number; bid?: number; ask?: number; volume?: number };
+
+const Y_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36";
+
+/** Cache the Yahoo session (cookie + crumb) for 30 minutes */
+let Y_SESSION: { cookie: string; crumb: string; ts: number } | null = null;
+const Y_TTL_MS = 30 * 60 * 1000;
+
+async function getYahooSession(): Promise<{ cookie: string; crumb: string }> {
+  const now = Date.now();
+  if (Y_SESSION && now - Y_SESSION.ts < Y_TTL_MS) return { cookie: Y_SESSION.cookie, crumb: Y_SESSION.crumb };
+
+  // Step 1: get a cookie by hitting a Yahoo endpoint that sets it
+  const r1 = await fetch("https://fc.yahoo.com", {
+    method: "GET",
+    redirect: "manual",
+    headers: { "User-Agent": Y_UA },
+    // @ts-ignore: node runtime
+    cache: "no-store",
+  });
+
+  // Node fetch exposes 'set-cookie' in headers
+  const setCookie = r1.headers.get("set-cookie") || "";
+  // grab the "B=" cookie (Yahoo identity cookie)
+  const m = setCookie.match(/(^|;\s*)B=([^;]+)/i);
+  if (!m) throw new Error("Yahoo cookie not received");
+  const cookie = `B=${m[2]}`;
+
+  // Step 2: fetch CRUMB with that cookie
+  const r2 = await fetch("https://query1.finance.yahoo.com/v1/test/getcrumb", {
+    headers: {
+      "User-Agent": Y_UA,
+      "Cookie": cookie,
+      "Accept": "*/*",
+    },
+    // @ts-ignore
+    cache: "no-store",
+  });
+  if (!r2.ok) {
+    const t = await r2.text().catch(() => "");
+    throw new Error(`getcrumb HTTP ${r2.status} :: ${t.slice(0, 200)}`);
+  }
+  const crumb = (await r2.text()).trim();
+  if (!crumb) throw new Error("Empty Yahoo crumb");
+
+  Y_SESSION = { cookie, crumb, ts: now };
+  return { cookie, crumb };
+}
+
+function yPremium(o: YOpt): number {
+  const px = Number(o.lastPrice ?? ((o.bid ?? 0) + (o.ask ?? 0)) / 2) || 0;
+  const vol = Number(o.volume ?? 0) || 0;
+  return px * vol * 100;
+}
+
+async function yOptions(symbol: string, unixDate: number) {
+  const sess = await getYahooSession();
+  // query2 tends to work better; include crumb & cookie
+  const url = `https://query2.finance.yahoo.com/v7/finance/options/${encodeURIComponent(symbol)}?date=${unixDate}&crumb=${encodeURIComponent(sess.crumb)}`;
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": Y_UA,
+      "Cookie": sess.cookie,
+      "Accept": "application/json, text/plain, */*",
+      "Accept-Language": "en-US,en;q=0.9",
+      "Connection": "keep-alive",
+    },
+    // @ts-ignore
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`Yahoo options HTTP ${res.status} :: ${t.slice(0, 200)}`);
+  }
+  const json = await res.json() as any;
+  const first = json?.optionChain?.result?.[0];
+  const set = first?.options?.[0] ?? {};
+  const calls = (set.calls ?? []) as YOpt[];
+  const puts  = (set.puts  ?? []) as YOpt[];
+  return { calls, puts };
+}
+
+/** Compute next N Fridays (US standard expirations) */
+function nextFridays(n: number): string[] {
+  const out: string[] = [];
+  const d = new Date(); d.setHours(0,0,0,0);
+  while (out.length < n) {
+    d.setDate(d.getDate() + 1);
+    if (d.getDay() === 5) out.push(d.toISOString().slice(0,10));
+  }
+  return out;
+}
+function isoToUnix(iso: string): number {
+  return Math.floor(new Date(iso + "T00:00:00Z").getTime() / 1000);
+}
+
+/** ============================== Types ===================================== */
+type GridPayload = {
+  symbol: string;
+  expirations: string[];
+  strikes: number[];
+  callMatrix: number[][];
+  putMatrix: number[][];
+  netMatrix: number[][];
+};
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  try {
+    const ticker = String(req.query.ticker || "").trim().toUpperCase();
+    const limit  = Math.min(Math.max(Number(req.query.limit || 6), 1), 12);
+    if (!ticker) return res.status(400).json({ error: "ticker required" });
+
+    /** 1) Try FINNHUB first (uses your FINNHUB_API_KEY) */
+    let dates: string[] = [];
+    try {
+      dates = (await fhExpirations(ticker)).slice(0, limit);
+    } catch {
+      /* noop, fall back */
+    }
+
+    let strikesSet = new Set<number>();
+    let per: { calls: Map<number,number>, puts: Map<number,number> }[] = [];
+
+    async function buildFromFinnhub(d: string[]) {
+      const tmpPer: typeof per = [];
+      const tmpStrikes = new Set<number>();
+      for (const dateISO of d) {
+        const { calls, puts } = await fhOptions(ticker, dateISO);
+        const cMap = new Map<number, number>();
+        const pMap = new Map<number, number>();
+        for (const c of calls) {
+          if (c.strike == null) continue;
+          const prem = premiumUSD(c);
+          if (prem > 0) { cMap.set(c.strike!, (cMap.get(c.strike!) || 0) + prem); tmpStrikes.add(c.strike!); }
+        }
+        for (const p of puts) {
+          if (p.strike == null) continue;
+          const prem = premiumUSD(p);
+          if (prem > 0) { pMap.set(p.strike!, (pMap.get(p.strike!) || 0) + prem); tmpStrikes.add(p.strike!); }
+        }
+        tmpPer.push({ calls: cMap, puts: pMap });
+      }
+      return { tmpPer, tmpStrikes };
+    }
+
+    async function buildFromYahoo() {
+      const guess = nextFridays(limit);
+      const tmpPer: typeof per = [];
+      const tmpStrikes = new Set<number>();
+      for (const iso of guess) {
+        const { calls, puts } = await yOptions(ticker, isoToUnix(iso));
+        const cMap = new Map<number, number>();
+        const pMap = new Map<number, number>();
+        for (const c of calls) {
+          if (c.strike == null) continue;
+          const prem = yPremium(c);
+          if (prem > 0) { cMap.set(c.strike!, (cMap.get(c.strike!) || 0) + prem); tmpStrikes.add(c.strike!); }
+        }
+        for (const p of puts) {
+          if (p.strike == null) continue;
+          const prem = yPremium(p);
+          if (prem > 0) { pMap.set(p.strike!, (pMap.get(p.strike!) || 0) + prem); tmpStrikes.add(p.strike!); }
+        }
+        tmpPer.push({ calls: cMap, puts: pMap });
+      }
+      return { dates: guess, tmpPer, tmpStrikes };
+    }
+
+    if (dates.length) {
+      try {
+        const { tmpPer, tmpStrikes } = await buildFromFinnhub(dates);
+        per = tmpPer; strikesSet = tmpStrikes;
+      } catch {
+        dates = []; // force Yahoo fallback
+      }
+    }
+
+    if (!dates.length || per.length === 0) {
+      const y = await buildFromYahoo();
+      dates = y.dates; per = y.tmpPer; strikesSet = y.tmpStrikes;
+    }
+
+    if (!dates.length || per.length === 0) {
+      const empty: GridPayload = { symbol: ticker, expirations: [], strikes: [], callMatrix: [], putMatrix: [], netMatrix: [] };
+      return res.status(200).json(empty);
+    }
+
+    let strikes = Array.from(strikesSet.values()).sort((a,b)=>a-b);
+    const MAX_ROWS = 80;
+    if (strikes.length > MAX_ROWS) {
+      const step = Math.ceil(strikes.length / MAX_ROWS);
+      strikes = strikes.filter((_,i)=> i % step === 0);
+    }
+
+    const rows = strikes.length, cols = dates.length;
+    const callMatrix = Array.from({length: rows}, ()=>Array(cols).fill(0));
+    const putMatrix  = Array.from({length: rows}, ()=>Array(cols).fill(0));
+    const netMatrix  = Array.from({length: rows}, ()=>Array(cols).fill(0));
+
+    for (let col=0; col<cols; col++) {
+      const { calls, puts } = per[col];
+      for (let r=0; r<rows; r++) {
+        const k = strikes[r];
+        const c = calls.get(k) || 0;
+        const p = puts.get(k)  || 0;
+        callMatrix[r][col] = c;
+        putMatrix[r][col]  = p;
+        netMatrix[r][col]  = c - p;
+      }
+    }
+
+    const payload: GridPayload = { symbol: ticker, expirations: dates, strikes, callMatrix, putMatrix, netMatrix };
+    res.status(200).json(payload);
+  } catch (e:any) {
+    res.status(500).json({ error: e?.message || String(e) });
+  }
+}

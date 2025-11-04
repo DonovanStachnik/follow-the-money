@@ -1,6 +1,22 @@
-﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <circle cx="46" cy="50" r="6" stroke="#22c55e" stroke-width="3" fill="none"/>
-  <path d="M8 36h30l10-10 6 6-12 12H16l-8-8z" fill="#0b1220" stroke="#22c55e" stroke-width="3"/>
-  <rect x="20" y="16" width="16" height="12" rx="2" fill="#10b981" stroke="#064e3b" stroke-width="2"/>
-  <path d="M28 16v12M24 20h8" stroke="#064e3b" stroke-width="2"/>
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 48">
+  <defs>
+    <linearGradient id="g" x1="0" x2="1">
+      <stop stop-color="#22c55e" offset="0"/>
+      <stop stop-color="#16a34a" offset="1"/>
+    </linearGradient>
+  </defs>
+  <!-- wheel -->
+  <circle cx="28" cy="38" r="8" fill="#0ea5e9"/>
+  <circle cx="28" cy="38" r="3" fill="#0b1220"/>
+  <!-- handles -->
+  <path d="M8 20 L26 36" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
+  <path d="M10 18 L32 18 L46 34" fill="none" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
+  <!-- barrow body -->
+  <path d="M16 12 H76 L92 26 H30 Z" fill="#0e1624" stroke="#94a3b8" stroke-width="2"/>
+  <!-- cash stack -->
+  <rect x="40" y="6"  width="20" height="10" rx="2" fill="url(#g)" stroke="#065f46" />
+  <rect x="52" y="2"  width="20" height="10" rx="2" fill="url(#g)" stroke="#065f46" />
+  <rect x="64" y="0"  width="20" height="10" rx="2" fill="url(#g)" stroke="#065f46" />
+  <!-- STAC mark -->
+  <text x="100" y="34" font-size="10" font-family="Segoe UI,Arial" fill="#22c55e">OSTAC</text>
 </svg>

@@ -1,37 +1,90 @@
-﻿<!doctype html><html><head>
-<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>FOLLOW THE MONEY • Home</title>
-<style>
-  body{margin:0;background:#0f172a;color:#e5e7eb;font-family:ui-sans-serif,system-ui,-apple-system}
-  .wrap{max-width:1200px;margin:0 auto;padding:24px 18px}
-  .card{background:#0b1220;border:1px solid #1f2937;border-radius:14px;padding:18px;margin-top:18px}
-  .btn{display:inline-block;background:#1d4ed8;color:#fff;border-radius:10px;padding:10px 14px;text-decoration:none}
-</style>
-</head><body>
-<header style="background:#0b1220;border-bottom:1px solid #1f2937">
-  <div style="max-width:1200px;margin:0 auto;padding:14px 18px;display:flex;gap:16px;align-items:center">
-    <div style="font-weight:800;letter-spacing:.3px"><img src="/logo.svg" alt="logo" style="width:22px;height:22px;vertical-align:middle;margin-right:10px">FOLLOW <span style="color:#22c55e">THE MONEY</span></div>
-    <nav style="display:flex;gap:14px">
-      <a href="/" style="color:#e5e7eb;text-decoration:none">Home</a>
-      <a href="/pro.html" style="color:#e5e7eb;text-decoration:none">Pro</a>
-      <a href="/disclaimer.html" style="color:#e5e7eb;text-decoration:none">Disclaimer</a>
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>OSTAC</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect rx='8' ry='8' x='6' y='6' width='52' height='52' fill='%230b1220' stroke='%237c3aed' stroke-width='3'/%3E%3Cpath d='M14 40 h28 l4-10 h-28z' fill='%23135a48'/%3E%3Ccircle cx='44' cy='42' r='4' fill='%237c3aed'/%3E%3Ccircle cx='24' cy='42' r='4' fill='%237c3aed'/%3E%3Crect x='34' y='18' width='4' height='16' fill='%2310b981'/%3E%3Crect x='40' y='22' width='4' height='12' fill='%2310b981'/%3E%3Crect x='28' y='24' width='4' height='10' fill='%2310b981'/%3E%3C/svg%3E">
+  <style>
+    :root{--bg:#0b1220;--panel:#0f172a;--muted:#94a3b8;--text:#e5e7eb;--accent:#7c3aed;--ok:#10b981;--bad:#ef4444}
+    *{box-sizing:border-box} html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 ui-sans-serif,system-ui,Segoe UI,Roboto,Arial}
+    header{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid #1f2937}
+    header h1{display:flex;align-items:center;gap:10px;font-size:16px;margin:0 6px 0 0}
+    .logo{width:18px;height:18px;display:inline-block}
+    header nav{margin-left:auto;display:flex;gap:16px}
+    header a{color:var(--muted);text-decoration:none} header a:hover{color:#cbd5e1}
+    .row{display:flex;gap:10px;align-items:center;padding:12px 18px;flex-wrap:wrap}
+    input,select,button{background:#0b1220;border:1px solid #1f2937;color:var(--text);padding:8px 10px;border-radius:8px}
+    input[type=number]{width:90px} #exp{width:160px}
+    button{background:#6d28d9;border-color:#6d28d9;cursor:pointer} button:hover{filter:brightness(1.08)}
+    .panel{background:var(--panel);border:1px solid #1f2937;border-radius:12px;margin:12px 18px;padding:12px}
+    .grid{overflow:auto;max-height:72vh;border-radius:10px}
+    table{width:100%;border-collapse:separate;border-spacing:0}
+    th,td{padding:10px 12px;border-bottom:1px solid #1f2937;white-space:nowrap}
+    th{position:sticky;top:0;background:#0f172a;font-weight:600}
+    td.right{text-align:right}
+    .heat{--mag:0; background:
+      linear-gradient(90deg, rgba(0,0,0,0) 0%,
+        rgba(19,48,66,0.25) 20%,
+        rgba(19,90,72,0.30) calc(50% + var(--mag)*0.5%),
+        rgba(75,31,42,0.30) calc(50% - var(--mag)*0.5%))}
+    .pos{color:var(--ok)} .neg{color:var(--bad)}
+    .inline{color:#9ca3af;font-size:12px;margin-left:6px}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>
+      <span class="logo" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+          <rect rx="8" ry="8" x="6" y="6" width="52" height="52" fill="#0b1220" stroke="#7c3aed" stroke-width="3"/>
+          <path d="M14 40 h28 l4-10 h-28z" fill="#135a48"/>
+          <circle cx="44" cy="42" r="4" fill="#7c3aed"/><circle cx="24" cy="42" r="4" fill="#7c3aed"/>
+          <rect x="34" y="18" width="4" height="16" fill="#10b981"/>
+          <rect x="40" y="22" width="4" height="12" fill="#10b981"/>
+          <rect x="28" y="24" width="4" height="10" fill="#10b981"/>
+        </svg>
+      </span>
+      OSTAC <span style="color:#94a3b8;font-weight:400;font-size:12px">local</span>
+    </h1>
+    <nav>
+      <a href="/home">Home</a>
+      <a href="/disclaimer">Disclaimer</a>
     </nav>
-  </div>
-</header>
-<div class="wrap">
-  <h1 style="margin:8px 0 6px">Welcome to FOLLOW THE MONEY</h1>
-  <p style="color:#9ca3af">Options heatmap + flow (powered by your local API).</p>
-  <div class="card">
-    <h2 style="margin:0 0 8px;font-size:18px">Get started</h2>
-    <p>Open the Pro screen to search a ticker, view strikes heatmap, and top flow.</p>
-    <a class="btn" href="/pro.html">Open Pro</a>
-  </div>
-  <div class="card">
-    <h2 style="margin:0 0 8px;font-size:18px">Important</h2>
-    <p>Read the disclaimer before using this tool for trading decisions.</p>
-    <a class="btn" href="/disclaimer.html">View Disclaimer</a>
-  </div>
-</div>
-</body></html>
+  </header>
 
+  <div class="row">
+    <label>Ticker <input id="sym" value="AAPL" size="8"/></label>
+    <label>Limit <input id="lim" type="number" min="1" step="1" value="5"/></label>
+    <label>Specific Expiry
+      <input id="exp" list="expList" placeholder="YYYY-MM-DD"/>
+      <datalist id="expList"></datalist>
+    </label>
+    <label>Metric
+      <select id="metric">
+        <option value="net_oi">Net OI (Calls–Puts)</option>
+        <option value="notional" selected>$ Notional (Net)</option>
+        <option value="netgex">NetGEX (approx)</option>
+      </select>
+    </label>
+    <span id="ivBox" class="inline" style="display:none">
+      IV <input id="iv" type="number" min="5" max="300" step="1" value="60" style="width:70px"/>
+      <span class="inline">(% for NetGEX)</span>
+    </span>
+    <button id="go">Fetch</button>
+    <span id="status" class="inline"></span>
+  </div>
 
+  <div class="panel">
+    <div class="grid">
+      <table id="tbl">
+        <thead><tr></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

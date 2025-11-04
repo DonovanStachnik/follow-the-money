@@ -1,0 +1,21 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="g" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#34d399"/>
+      <stop offset="1" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <!-- wheel -->
+  <circle cx="92" cy="98" r="12" stroke="#94a3b8" stroke-width="6" fill="#0f172a"/>
+  <circle cx="92" cy="98" r="4" fill="#94a3b8"/>
+  <!-- barrow body -->
+  <path d="M16 50h58c4 0 7 3 7 7v6c0 4-3 7-7 7H40l-6 14H22l7-14H16z" fill="#111827" stroke="#374151" stroke-width="4" />
+  <!-- handle -->
+  <path d="M74 50l34-20" stroke="#64748b" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="112" cy="28" r="4" fill="#94a3b8"/>
+  <!-- cash stack -->
+  <rect x="24" y="26" width="44" height="18" rx="3" fill="url(#g)" stroke="#065f46" stroke-width="3"/>
+  <rect x="30" y="18" width="44" height="18" rx="3" fill="url(#g)" stroke="#065f46" stroke-width="3"/>
+  <rect x="36" y="10" width="44" height="18" rx="3" fill="url(#g)" stroke="#065f46" stroke-width="3"/>
+  <circle cx="52" cy="35" r="3" fill="#065f46"/>
+</svg>

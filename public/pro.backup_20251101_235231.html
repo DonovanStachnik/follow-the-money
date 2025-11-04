@@ -1,0 +1,127 @@
+﻿<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>FollowTheMoney • Pro</title>
+  <style>
+    body{margin:0;background:#0f172a;color:#e5e7eb;font-family:ui-sans-serif,system-ui}
+    .wrap{max-width:1200px;margin:0 auto;padding:24px 18px}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    input,select,button{background:#0b1220;color:#e5e7eb;border:1px solid #1f2937;padding:9px 10px;border-radius:10px}
+    button{cursor:pointer}
+    .panel{background:#0b1220;border:1px solid #1f2937;border-radius:14px;padding:14px;margin-top:18px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;margin-top:12px}
+    .cell{padding:12px;border-radius:10px;text-align:center}
+    .pos{background:#064e3b} .neg{background:#3b0764} .neu{background:#1f2937}
+    .item{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px dashed #1f2937}
+    .badge{font-size:12px;padding:3px 8px;border-radius:999px}
+    .call{background:#065f46;color:#bbf7d0} .put{background:#6d28d9;color:#f5d0fe}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Pro — Heatmap & Flow</h1>
+    <div class="row">
+      <label>Ticker <input id="ticker" value="AAPL" style="width:110px"></label>
+      <label>Expiry <select id="expiry"></select></label>
+      <button id="search">Search</button>
+      <span id="status" style="color:#9ca3af"></span>
+    </div>
+
+    <div class="panel">
+      <div>Heatmap (Net premium per strike)</div>
+      <small style="color:#9ca3af">Source: /api/grid2. Positive = net call premium, Negative = net put premium.</small>
+      <div id="grid" class="grid"></div>
+    </div>
+
+    <div class="panel">
+      <div>Top Flow</div>
+      <small style="color:#9ca3af">Source: /api/flow2.</small>
+      <div id="flow"></div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const fmt = (n) => {
+      const a = Math.abs(n);
+      if (a >= 1e9) return (n / 1e9).toFixed(1) + "B";
+      if (a >= 1e6) return (n / 1e6).toFixed(1) + "M";
+      if (a >= 1e3) return (n / 1e3).toFixed(1) + "K";
+      return String(Math.round(n));
+    };
+    const color = (v) => (v > 1e6 ? "pos" : v < -1e6 ? "neg" : "neu");
+
+    async function j(url) {
+      const r = await fetch(url, { cache: "no-store" });
+      if (!r.ok) throw new Error("HTTP " + r.status + ": " + (await r.text()));
+      return r.json();
+    }
+
+    async function loadExpirations() {
+      const sym = $("#ticker").value.trim().toUpperCase();
+      const res = await j("/api/search?ticker=" + encodeURIComponent(sym));
+      const sel = $("#expiry");
+      sel.innerHTML = "";
+      (res.expirations || []).forEach((d) => {
+        const o = document.createElement("option");
+        o.value = d;
+        o.textContent = d;
+        sel.appendChild(o);
+      });
+      if (sel.options.length) sel.selectedIndex = 0;
+    }
+
+    async function loadData() {
+      const sym = $("#ticker").value.trim().toUpperCase();
+      const exp = $("#expiry").value;
+      if (!sym) return;
+
+      const [flow, grid] = await Promise.all([
+        j("/api/flow2?ticker=" + sym + "&date=" + encodeURIComponent(exp)),
+        j("/api/grid2?ticker=" + sym + "&date=" + encodeURIComponent(exp))
+      ]);
+
+      const g = $("#grid");
+      g.innerHTML = "";
+      (grid.netMatrix || []).forEach((c) => {
+        const d = document.createElement("div");
+        d.className = "cell " + color(c.value);
+        d.textContent = c.strike + " • " + fmt(c.value);
+        g.appendChild(d);
+      });
+
+      const f = $("#flow");
+      f.innerHTML = "";
+      (flow.items || []).forEach((it) => {
+        const row = document.createElement("div");
+        row.className = "item";
+        const side = document.createElement("span");
+        side.className = "badge " + (it.side === "CALL" ? "call" : "put");
+        side.textContent = it.side;
+        row.appendChild(side);
+        row.insertAdjacentHTML(
+          "beforeend",
+          ` Strike <b>${it.strike}</b> Vol ${fmt(it.volume)} OI ${fmt(it.oi)} <b>$${fmt(it.premium)}</b>`
+        );
+        f.appendChild(row);
+      });
+
+      $("#status").textContent = `OK • ${sym} • ${exp || "auto"} • ${new Date().toLocaleTimeString()}`;
+    }
+
+    async function runSearch() {
+      try {
+        await loadExpirations();
+        await loadData();
+      } catch (e) {
+        console.error(e);
+        $("#status").textContent = "Error: " + (e.message || e);
+      }
+    }
+
+    document.querySelector("#search").addEventListener("click", runSearch);
+    document.addEventListener("DOMContentLoaded", runSearch);
+  </script>
+</body>
+</html>

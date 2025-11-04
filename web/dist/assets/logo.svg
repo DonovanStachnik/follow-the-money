@@ -1,0 +1,17 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 120">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10B981"/>
+      <stop offset="100%" stop-color="#22C55E"/>
+    </linearGradient>
+  </defs>
+  <rect width="560" height="120" rx="16" fill="#0B0F10"/>
+  <g transform="translate(20,18)">
+    <rect x="0" y="0" width="84" height="84" rx="18" fill="url(#g)"/>
+    <path d="M20 58 L35 42 L45 52 L64 33" stroke="white" stroke-width="7" fill="none" stroke-linecap="round"/>
+    <circle cx="64" cy="33" r="6.5" fill="white"/>
+  </g>
+  <text x="120" y="72" font-family="Segoe UI, Inter, Arial" font-size="44" fill="white" font-weight="700">
+    Follow The Money
+  </text>
+</svg>

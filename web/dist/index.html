@@ -1,0 +1,65 @@
+﻿<!doctype html><html><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Follow The Money</title>
+<link rel="icon" href="/assets/logo.svg">
+<link rel="stylesheet" href="/assets/style.css">
+</head><body>
+  <header class="header">
+    <a class="logo" href="/"><img src="/assets/logo.svg" alt="FTM"><span>Follow The Money</span></a>
+    <nav class="nav">
+      <a class="btn" href="/disclaimer">Disclaimer</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <div class="card">
+      <div class="h1">Quick Quote + Expirations</div>
+      <div class="kv">
+        <input class="input" id="ticker" value="AAPL" />
+        <button class="btn" id="go">Go</button>
+        <span id="status"></span>
+      </div>
+      <pre id="quote" style="white-space:pre-wrap;margin-top:12px"></pre>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="h1">Heatmap Grid (sample)</div>
+        <pre id="grid" style="white-space:pre-wrap"></pre>
+      </div>
+      <div class="card">
+        <div class="h1">Flow (sample)</div>
+        <pre id="flow" style="white-space:pre-wrap"></pre>
+      </div>
+    </div>
+  </main>
+
+  <div class="footer">
+    Data via configured source. For educational purposes only. See <a class="link" href="/disclaimer">Disclaimer</a>.
+  </div>
+
+<script>
+async function run(ticker){
+  const $ = (id)=>document.getElementById(id);
+  #status.textContent = "loading...";
+  try{
+    const q = await fetch(\/api/search?ticker=\\).then(r=>r.json());
+    #quote.textContent = JSON.stringify(q,null,2);
+
+    const g = await fetch(\/api/grid?ticker=\&limit=3\).then(r=>r.json());
+    #grid.textContent = JSON.stringify(g,null,2);
+
+    const f = await fetch(\/api/flow?ticker=\&limit=40&expiries=3\).then(r=>r.json());
+    #flow.textContent = JSON.stringify(f,null,2);
+
+    #status.textContent = "ok";
+  }catch(e){
+    #status.textContent = "error";
+  }
+}
+document.getElementById("go").addEventListener("click",()=>{
+  run(document.getElementById("ticker").value.trim()||"AAPL");
+});
+run("AAPL");
+</script>
+</body></html>

@@ -1,35 +1,65 @@
-﻿<!doctype html><html><head>
-<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>FOLLOW THE MONEY • Disclaimer</title>
-<style>
-  body{margin:0;background:#0f172a;color:#e5e7eb;font-family:ui-sans-serif,system-ui,-apple-system}
-  .wrap{max-width:900px;margin:0 auto;padding:24px 18px}
-  .card{background:#0b1220;border:1px solid #1f2937;border-radius:14px;padding:18px;margin-top:18px}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>OSTAC — Disclaimer</title>
+  <style>
+:root{
+  --bg:#0a0f1a; --panel:#0e1624; --header:#0b1220; --line:#13203b;
+  --text:#e6edf3; --muted:#8fa2b7; --accent:#7c3aed; --ok:#22c55e; --bad:#ef4444;
+}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 ui-sans-serif,system-ui,Segoe UI,Roboto,Arial}
+header{display:flex;gap:12px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)}
+header a{color:var(--muted);text-decoration:none;margin-left:auto}
+header a:hover{color:#cbd5e1}
+.row{display:flex;gap:10px;align-items:center;padding:12px 18px}
+input,select,button{background:#0b1220;border:1px solid var(--line);color:var(--text);padding:8px 10px;border-radius:8px;outline:none}
+button{background:var(--accent);border-color:var(--accent);cursor:pointer}
+button:hover{filter:brightness(1.08)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:12px 18px;padding:12px}
+.grid{overflow:auto;max-height:70vh;border-radius:10px}
+table{width:100%;border-collapse:separate;border-spacing:0}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{position:sticky;top:0;background:var(--header);font-weight:600}
+.right{text-align:right}
+.muted{color:var(--muted)}
+.pos{color:var(--ok)} .neg{color:var(--bad)}
+/* heatbar uses --x (0..100) set from JS */
+.heat{--x:0}
+.heat.pos{
+  background:linear-gradient(90deg,#0f172a 0%,
+    rgba(34,197,94,0.10) calc(50% - var(--x)*1%),
+    rgba(34,197,94,0.40) calc(50% + var(--x)*1%));
+}
+.heat.neg{
+  background:linear-gradient(90deg,#0f172a 0%,
+    rgba(239,68,68,0.10) calc(50% - var(--x)*1%),
+    rgba(239,68,68,0.45) calc(50% + var(--x)*1%));
+}
+#status{margin-left:6px;color:var(--muted)}
 </style>
-</head><body>
-<header style="background:#0b1220;border-bottom:1px solid #1f2937">
-  <div style="max-width:1200px;margin:0 auto;padding:14px 18px;display:flex;gap:16px;align-items:center">
-    <div style="font-weight:800;letter-spacing:.3px"><img src="/logo.svg" alt="logo" style="width:22px;height:22px;vertical-align:middle;margin-right:10px">FOLLOW <span style="color:#22c55e">THE MONEY</span></div>
-    <nav style="display:flex;gap:14px">
-      <a href="/" style="color:#e5e7eb;text-decoration:none">Home</a>
-      <a href="/pro.html" style="color:#e5e7eb;text-decoration:none">Pro</a>
-      <a href="/disclaimer.html" style="color:#e5e7eb;text-decoration:none">Disclaimer</a>
+</head>
+<body>
+  <header>
+    <h1>
+      <img alt="OSTAC" width="20" height="20"
+        src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Crect x='10' y='10' width='76' height='76' rx='8' fill='%230b1220' stroke='%237c3aed' stroke-width='4'/%3E%3Crect x='44' y='28' width='8' height='40' rx='2' fill='%2322c55e'/%3E%3Crect x='44' y='52' width='8' height='16' rx='2' fill='%2316a34a'/%3E%3Crect x='44' y='68' width='8' height='8' rx='2' fill='%230ea5e9'/%3E%3C/svg%3E">
+      OSTAC <span class="badge">local</span>
+    </h1>
+    <nav>
+      <a href="/">Home</a>
     </nav>
-  </div>
-</header>
-<div class="wrap">
-  <h1 style="margin:8px 0 6px">Disclaimer</h1>
-  <div class="card">
-    <p style="color:#9ca3af">
-      This site provides market data visualizations for educational purposes only and does not constitute financial advice.
-      Trading involves risk, including the possible loss of principal. Verify all data independently.
-    </p>
-    <p style="color:#9ca3af">
-      By using this site you agree that you are solely responsible for your trading decisions and compliance with your broker’s
-      terms. Data may be delayed, incomplete, or unavailable for some dates/expirations.
-    </p>
-  </div>
-</div>
-</body></html>
+  </header>
 
-
+  <main>
+    <div class="card">
+      <h2>Important Disclaimer</h2>
+      <p><strong>Educational use only.</strong> OSTAC is an analytics interface for publicly available market data. It does not provide personalized financial, investment, or trading advice.</p>
+      <p>Options data may be delayed (~15 minutes) and may contain inaccuracies. Always verify critical values with your broker before placing trades. You are solely responsible for your investment decisions and risk.</p>
+      <p class="muted">By using this site you acknowledge and accept these terms.</p>
+    </div>
+  </main>
+</body>
+</html>

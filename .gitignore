@@ -1,13 +1,6 @@
 ﻿node_modules/
-.next/
-dist/
-build/
-coverage/
+.vscode/
 .env
 *.log
-*.bak
-*.backup*
-public/*.backup*.html
-server/*.bak*
-.vscode/
-.DS_Store
+pm2.log
+*.bak*

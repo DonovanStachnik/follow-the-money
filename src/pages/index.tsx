@@ -1,185 +1,40 @@
-﻿import { useEffect, useState } from "react";
-import axios from "axios";
-import Navbar from "../components/Navbar";
-import SearchBar from "../components/SearchBar";
-import Heatmap from "../components/Heatmap";
-import Leaderboard from "../components/Leaderboard";
-import FlowTable from "../components/FlowTable";
-import dynamic from "next/dynamic";
-const GridHeatmap = dynamic(() => import("../components/GridHeatmap"), { ssr: false });
-type Ticker = { symbol: string; value: number };
-
-type OptionRow = {
-  time: string;
-  symbol: string;
-  type: "CALL" | "PUT";
-  strike: number;
-  expiry: string;
-  premium: number;
-  side: "BUY" | "SELL";
-  volume?: number;
-  lastPrice?: number;
-  openInterest?: number;
-};
+﻿import Head from "next/head";
+import Header from "../components/Header";
+import { useState } from "react";
 
 export default function Home() {
-  const [top, setTop] = useState<Ticker[]>([]);
-  const [query, setQuery] = useState("AAPL");
-  const [rows, setRows] = useState<OptionRow[]>([]);
-  const [expirations, setExpirations] = useState<string[]>([]);
-  const [selectedExp, setSelectedExp] = useState<string | null>(null);
-  const [quote, setQuote] = useState<any>(null);
-  const [heat, setHeat] = useState<{ strikes: number[]; callPremiums: number[]; putPremiums: number[] } | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  
-  type GridData = {
-  symbol: string; expirations: string[]; strikes: number[];
-  callMatrix: number[][]; putMatrix: number[][]; netMatrix: number[][];
-};
-const [grid, setGrid] = useState<GridData | null>(null);
-  const [gridMode, setGridMode] = useState<"net"|"calls"|"puts">("net");
-  const [gridLoading, setGridLoading] = useState(false);
-  const [gridErr, setGridErr] = useState<string|null>(null);
-useEffect(() => {
-    init();
-  }, []);
-
-  async function init() {
-    setErr(null);
-    try {
-      const t = await axios.get("/api/top");
-      setTop(t.data.top || []);
-    } catch (e:any) {
-      setErr(`Top tickers failed: ${e?.response?.data?.error || e?.message}`);
-    }
-    await bootstrap(query);
-  }
-
-  async function bootstrap(sym: string) {
-  const s = sym.trim().toUpperCase();
-  try {
-    const search = await axios.get("/api/search", { params: { ticker: s } });
-    if (search.data?.error) { setErr("Search failed: " + search.data.error); return; }
-    setQuote(search.data.quote);
-
-    const exps: string[] = search.data.expirations || [];
-    setExpirations(exps);
-
-    const exp = exps[0] || null; // nearest; server returns sorted
-    setSelectedExp(exp);
-
-        if (typeof loadGrid === 'function') await loadGrid(s);
-// immediately load options + heatmap
-    setErr(null);
-  } catch (e:any) {
-    const msg = (e?.response?.data?.error as string) ?? (e?.message as string) ?? "Unknown error";
-    setErr(`Search failed: ${msg}`);
-  }
-}async function loadOptions(sym: string, exp?: string | null) {
-    setErr(null);
-    try {
-      const res = await axios.get("/api/options", { params: { ticker: sym, expiration: exp || "" } });
-      setRows(res.data.topContracts || []);
-      const heatRes = await axios.get("/api/heatmap", { params: { ticker: sym, expiration: exp || "" } });
-      setHeat(heatRes.data);
-    } catch (e:any) {
-      setErr(`Options/Heatmap failed: ${e?.response?.data?.error || e?.message}`);
-    }
-
-
-  async function loadGrid(sym: string, n: number = 4) {
-    if (!sym) return;
-    try {
-      setGridLoading(true); setGridErr(null);
-      const r = await fetch(`/api/grid?ticker=${encodeURIComponent(sym)}&n=${n}`);
-      const j = await r.json();
-      if (j?.error) { setGrid(null); setGridErr(j.error); }
-      else setGrid(j);
-    } catch (e:any) {
-      setGridErr(e?.message || "grid failed"); setGrid(null);
-    } finally {
-      setGridLoading(false);
-    }
-  }
-  }
-
-  function onSearch() {
-    bootstrap(query);
-  }
-
+  const [symbol, setSymbol] = useState("AAPL");
   return (
-    <div className="min-h-screen">
-      <Navbar />
-      <main className="mx-auto max-w-7xl px-4 py-6 space-y-6">
-        {err && (
-          <div className="bg-rose-900/40 border border-rose-700 text-rose-200 rounded-xl p-3">
-            <div className="font-semibold">Error</div>
-            <div className="text-sm whitespace-pre-wrap">{err}</div>
-          </div>
-        )}
-
-        <div className="grid grid-cols-12 gap-6">
-          <section className="col-span-12 card">
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl font-bold">HeatSeeker Pro — Options Intelligence</h1>
-              <span className="subtle">Real (delayed) data via Yahoo endpoints</span>
-            </div>
-            <div className="mt-4 flex flex-col sm:flex-row gap-3">
-              <SearchBar value={query} onChange={setQuery} onSearch={onSearch} />
-              <select
-                className="input sm:w-64"
-                value={selectedExp || ""}
-                onChange={(e) => { setSelectedExp(e.target.value); loadOptions(query, e.target.value); }}
-              >
-                {expirations.map((d) => (
-                  <option key={d} value={d}>{d}</option>
-                ))}
-              </select>
-              {quote && (
-                <div className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg">
-                  <div className="text-sm">{quote.symbol} • {quote.longName || quote.shortName}</div>
-                  <div className="text-xl font-semibold">${Number(quote.regularMarketPrice || quote.postMarketPrice || 0).toFixed(2)}</div>
-                </div>
-              )}
-            </div>
-          </section>
-
-          <section className="col-span-12 card" id="heatmap">
-  <h2 className="section-title">Heatmap — {query}</h2>
-  <GridHeatmap data={grid} />
-</section>
-
-          <aside className="col-span-12 lg:col-span-4 card" id="top">
-            <h2 className="section-title">Trending Tickers</h2>
-            <Leaderboard items={top.map(t => ({ symbol: t.symbol, dollarFlow: t.value }))} />
-          </aside>
-
-          <section className="col-span-12 card" id="flow">
-            <h2 className="section-title">Most Active Contracts — {query}</h2>
-            <FlowTable rows={rows} />
-          </section>
+    <>
+      <Head>
+        <title><a href="/" style="display:inline-flex;align-items:center;gap:8px;text-decoration:none;color:inherit"><img src="/logo.svg" alt="Follow The Money" width="26" height="26"/><span>Follow The Money</span></a></title>
+      </Head>
+      <Header />
+      <main className="max-w-6xl mx-auto px-4 py-6 text-slate-200">
+        <h1 className="text-2xl font-semibold mb-3">Options Intelligence</h1>
+        <div className="flex gap-2 items-center mb-6">
+          <label className="text-sm text-slate-400">Symbol</label>
+          <input
+            value={symbol}
+            onChange={(e)=>setSymbol(e.target.value.toUpperCase())}
+            className="bg-[#0f172a] border border-slate-700 rounded px-3 py-2 text-white"
+            placeholder="AAPL"
+          />
+          <a
+            className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded"
+            href={`/api/grid?ticker=${encodeURIComponent(symbol)}`}
+            target="_blank" rel="noreferrer"
+          >
+            Search (raw API)
+          </a>
         </div>
 
-        <footer className="text-center subtle">
-          © {new Date().getFullYear()} HeatSeeker Pro • Educational use • Data delayed 15+ minutes
-        </footer>
+        <p className="text-slate-400">
+          Tip: Your API is running at <code className="text-slate-300">/api</code>.  
+          Try <code className="text-slate-300">/api/search?ticker=AAPL</code> or view the UI page you already have for quotes/expirations.
+        </p>
       </main>
-    </div>
+    </>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

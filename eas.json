@@ -1,0 +1,39 @@
+{
+  "cli": {
+    "version": ">= 3.13.0"
+  },
+  "build": {
+    "ios": {
+      "type": "managed",
+      "autoIncrement": true,
+      "developmentClient": false,
+      "distribution": "store"
+    },
+    "android": {
+      "type": "managed",
+      "autoIncrement": true,
+      "gradleCommand": ":app:assembleRelease"
+    },
+    "preview": {
+      "distribution": "internal"
+    },
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    }
+  },
+  "submit": {
+    "ios": {
+      "appleId": "dstach10@icloud.com",
+      "ascAppId": "YOUR_APP_STORE_CONNECT_ID"
+    },
+    "android": {
+      "serviceAccountKeyPath": "./google-service-account.json"
+    }
+  },
+  "project": {
+    "slug": "ostac",
+    "owner": "donovanstachnik",
+    "name": "OSTAC"
+  }
+}
